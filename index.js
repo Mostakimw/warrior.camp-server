@@ -22,6 +22,8 @@ const client = new MongoClient(uri, {
 });
 
 const usersCollection = client.db("warriorCamp").collection("users");
+const classesCollection = client.db("warriorCamp").collection("classes");
+// const usersCollection = client.db("warriorCamp").collection("users");
 
 async function run() {
   try {
@@ -49,10 +51,8 @@ async function run() {
     app.put("/users/:id/role", async (req, res) => {
       const id = req.params.id;
       const { role } = req.body;
-      console.log(role);
       const query = { _id: new ObjectId(id) };
       const currentUser = await usersCollection.findOne(query);
-      console.log(currentUser);
       if (!currentUser) {
         return res.status(404).send({ message: "user not found" });
       }
@@ -62,6 +62,28 @@ async function run() {
         },
       };
       const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // ! store the class from instructor from add class page
+    app.post("/classes", async (req, res) => {
+      const classData = req.body;
+      const result = await classesCollection.insertOne(classData);
+      res.send(result);
+    });
+
+    // ! get the stored all classes data
+    app.get("/classes", async (req, res) => {
+      const result = await classesCollection.find().toArray();
+      res.send(result);
+    });
+
+    // ! get class data by instructor
+    app.get("/classes/instructor", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      console.log(query);
+      const result = await classesCollection.find(query).toArray();
       res.send(result);
     });
 

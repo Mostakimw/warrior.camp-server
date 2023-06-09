@@ -40,14 +40,26 @@ const client = new MongoClient(uri, {
   },
 });
 
-const usersCollection = client.db("warriorCamp").collection("users");
-const classesCollection = client.db("warriorCamp").collection("classes");
-// const usersCollection = client.db("warriorCamp").collection("users");
-
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+    const usersCollection = client.db("warriorCamp").collection("users");
+    const classesCollection = client.db("warriorCamp").collection("classes");
+    // const usersCollection = client.db("warriorCamp").collection("users");
+
+    // ! verify admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      if (result?.role !== "admin") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
+      }
+      next();
+    };
 
     // ! jwt
     app.post("/jwt", async (req, res) => {
@@ -56,6 +68,29 @@ async function run() {
         expiresIn: "1h",
       });
       res.send({ token });
+    });
+
+    // ! get/check if its admin or not
+    app.get("/users/admin/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (req.decoded.email !== email) {
+        return res.send({ admin: false });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const result = { admin: user?.role === "admin" };
+      res.send(result);
+    });
+    // ! get/check if its instructor or not
+    app.get("/users/instructor/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      if (req.decoded.email !== email) {
+        return res.send({ instructor: false });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const result = { instructor: user?.role === "admin" };
+      res.send(result);
     });
 
     // ! users storing on db
@@ -93,6 +128,16 @@ async function run() {
       res.send(result);
     });
 
+    // ! delete user by admin in manage user page
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      console.log(query);
+      const result = await usersCollection.deleteOne(query);
+
+      res.send(result);
+    });
+
     // ! store the class from instructor from add class page
     app.post("/classes", async (req, res) => {
       const classData = req.body;
@@ -107,7 +152,7 @@ async function run() {
     });
 
     // ! get class data by instructor
-    app.get("/classes/instructor", verifyJWT, async (req, res) => {
+    app.get("/classes", verifyJWT, async (req, res) => {
       const decodedEmail = req.decoded.email;
       const email = req.query.email;
       if (decodedEmail !== email) {

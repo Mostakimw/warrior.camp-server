@@ -1,6 +1,7 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
+var jwt = require("jsonwebtoken");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -8,6 +9,24 @@ const port = process.env.PORT || 5000;
 // ! middleware
 app.use(cors());
 app.use(express.json());
+
+// ! verify jwt
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res
+      .status(401)
+      .send({ error: true, message: "Unauthorized access" });
+  }
+  const token = authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ error: true, message: "Forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.eh4qdyd.mongodb.net/?retryWrites=true&w=majority`;
@@ -29,6 +48,15 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+
+    // ! jwt
+    app.post("/jwt", async (req, res) => {
+      const body = req.body;
+      const token = jwt.sign(body, process.env.ACCESS_TOKEN, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
 
     // ! users storing on db
     app.post("/users", async (req, res) => {
@@ -79,10 +107,15 @@ async function run() {
     });
 
     // ! get class data by instructor
-    app.get("/classes/instructor", async (req, res) => {
+    app.get("/classes/instructor", verifyJWT, async (req, res) => {
+      const decodedEmail = req.decoded.email;
       const email = req.query.email;
+      if (decodedEmail !== email) {
+        return res
+          .status(403)
+          .send({ error: true, message: "Forbidden access" });
+      }
       const query = { email: email };
-      console.log(query);
       const result = await classesCollection.find(query).toArray();
       res.send(result);
     });
@@ -99,9 +132,7 @@ async function run() {
     app.patch("/classes/:id", async (req, res) => {
       const id = req.params.id;
       const classData = req.body;
-      console.log(classData);
       const query = { _id: new ObjectId(id) };
-      //   const classDataSavedInDb = await classesCollection.findOne(query);
       const updateDoc = {
         $set: {
           className: classData?.className,
@@ -119,7 +150,6 @@ async function run() {
     app.put("/classes/:id/status", async (req, res) => {
       const id = req.params.id;
       const { status } = req.body;
-      console.log(status);
       const query = { _id: new ObjectId(id) };
       const currentStatus = await classesCollection.findOne(query);
       if (!currentStatus) {

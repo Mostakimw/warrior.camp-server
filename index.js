@@ -2,9 +2,10 @@ const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
 var jwt = require("jsonwebtoken");
+const stripe = require("stripe")(process.env.PAYMENT_SK);
 
-const app = express();
 const port = process.env.PORT || 5000;
+const app = express();
 
 // ! middleware
 app.use(cors());
@@ -50,6 +51,20 @@ async function run() {
     const selectedClassesCollection = client
       .db("warriorCamp")
       .collection("selectedClasses");
+
+    // ! payment intent
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price) * 100;
+      if (!price) return;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
 
     // ! verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -233,25 +248,32 @@ async function run() {
       const result = await selectedClassesCollection.insertOne(data);
       res.send(result);
     });
-    // ! get all the selected classes
-    app.get("/selected-classes", async (req, res) => {
-      const result = await selectedClassesCollection.find().toArray();
-      res.send(result);
-    });
+
     // ! get all the selected classes by their email
-    app.get("/selected-classes/:email", async (req, res) => {
-      const email = req.params.email;
+    app.get("/selected-classes", verifyJWT, async (req, res) => {
+      const email = req.query.email;
+      if (!email) {
+        res.send([]);
+      }
+      if (req.decoded.email !== email) {
+        if (email !== decodedEmail) {
+          return res
+            .status(403)
+            .send({ error: true, message: "Forbidden access" });
+        }
+      }
       const query = { email: email };
-      const result = await selectedClassesCollection.findOne(query);
+      const result = await selectedClassesCollection.find(query).toArray();
       res.send(result);
     });
-    // ! get single classes by their id
+    // ! get single class by their id
     app.get("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await selectedClassesCollection.findOne(query);
       res.send(result);
     });
+
     // ! delete single class by user
     app.delete("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;

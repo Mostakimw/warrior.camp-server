@@ -214,6 +214,23 @@ async function run() {
       res.send(result);
     });
 
+    // ! update seat and enrollment after stu enrolled
+    app.patch("/classes/:courseId", async (req, res) => {
+      const courseId = req.params.courseId;
+
+      try {
+        const update = await classesCollection.updateOne(
+          { courseId },
+          { $inc: { availableSeats: -1, enrollment: 1 } }
+        );
+
+        res.send(update);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("Failed to update class.");
+      }
+    });
+
     // ! selected classes
 
     // ! post selected classes to db
@@ -258,11 +275,8 @@ async function run() {
     // ! get single class by their id
     app.get("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const query = { _id: id };
-      console.log(query);
       const result = await selectedClassesCollection.findOne(query);
-      console.log(result);
       res.send(result);
     });
 
@@ -270,7 +284,7 @@ async function run() {
     app.delete("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;
       const result = await selectedClassesCollection.deleteOne({
-        _id: new ObjectId(id),
+        _id: id,
       });
       res.send(result);
     });
@@ -293,6 +307,12 @@ async function run() {
     app.post("/enroll", async (req, res) => {
       const enrolledData = req.body;
       const result = await enrollmentCollection.insertOne(enrolledData);
+      res.send(result);
+    });
+
+    //! get all the paid classes
+    app.get("/enrolled", async (req, res) => {
+      const result = await enrollmentCollection.find().toArray();
       res.send(result);
     });
 

@@ -24,6 +24,7 @@ const verifyJWT = (req, res, next) => {
       return res.status(403).send({ error: true, message: "Forbidden access" });
     }
     req.decoded = decoded;
+    console.log(req.decoded);
     next();
   });
 };
@@ -46,7 +47,9 @@ async function run() {
     await client.connect();
     const usersCollection = client.db("warriorCamp").collection("users");
     const classesCollection = client.db("warriorCamp").collection("classes");
-    // const usersCollection = client.db("warriorCamp").collection("users");
+    const selectedClassesCollection = client
+      .db("warriorCamp")
+      .collection("selectedClasses");
 
     // ! verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -73,23 +76,27 @@ async function run() {
     // ! get/check if its admin or not
     app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
+      console.log(email);
       if (req.decoded.email !== email) {
         return res.send({ admin: false });
       }
       const query = { email: email };
       const user = await usersCollection.findOne(query);
+      console.log(user);
       const result = { admin: user?.role === "admin" };
       res.send(result);
     });
     // ! get/check if its instructor or not
     app.get("/users/instructor/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
+      console.log(email);
       if (req.decoded.email !== email) {
         return res.send({ instructor: false });
       }
       const query = { email: email };
       const user = await usersCollection.findOne(query);
-      const result = { instructor: user?.role === "admin" };
+      console.log(user);
+      const result = { instructor: user?.role === "instructor" };
       res.send(result);
     });
 
@@ -206,6 +213,51 @@ async function run() {
         },
       };
       const result = await classesCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    // ! selected classes
+
+    // ! post selected classes to db
+    app.post("/selected-classes", async (req, res) => {
+      const data = req.body.selectedClasses;
+      const existingSelection = await selectedClassesCollection.findOne({
+        email: data.email,
+        className: data.className,
+      });
+      if (existingSelection) {
+        return res
+          .status(409)
+          .send({ message: "This class is already selected" });
+      }
+      const result = await selectedClassesCollection.insertOne(data);
+      res.send(result);
+    });
+    // ! get all the selected classes
+    app.get("/selected-classes", async (req, res) => {
+      const result = await selectedClassesCollection.find().toArray();
+      res.send(result);
+    });
+    // ! get all the selected classes by their email
+    app.get("/selected-classes/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await selectedClassesCollection.findOne(query);
+      res.send(result);
+    });
+    // ! get single classes by their id
+    app.get("/selected-classes/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await selectedClassesCollection.findOne(query);
+      res.send(result);
+    });
+    // ! delete single class by user
+    app.delete("/selected-classes/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await selectedClassesCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 

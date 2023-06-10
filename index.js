@@ -25,7 +25,6 @@ const verifyJWT = (req, res, next) => {
       return res.status(403).send({ error: true, message: "Forbidden access" });
     }
     req.decoded = decoded;
-    console.log(req.decoded);
     next();
   });
 };
@@ -51,20 +50,9 @@ async function run() {
     const selectedClassesCollection = client
       .db("warriorCamp")
       .collection("selectedClasses");
-
-    // ! payment intent
-    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
-      const { price } = req.body;
-      const amount = parseFloat(price) * 100;
-      if (!price) return;
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: "usd",
-        payment_method_types: ["card"],
-      });
-
-      res.send({ clientSecret: paymentIntent.client_secret });
-    });
+    const enrollmentCollection = client
+      .db("warriorCamp")
+      .collection("enrollment");
 
     // ! verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -91,26 +79,22 @@ async function run() {
     // ! get/check if its admin or not
     app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-      console.log(email);
       if (req.decoded.email !== email) {
         return res.send({ admin: false });
       }
       const query = { email: email };
       const user = await usersCollection.findOne(query);
-      console.log(user);
       const result = { admin: user?.role === "admin" };
       res.send(result);
     });
     // ! get/check if its instructor or not
     app.get("/users/instructor/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-      console.log(email);
       if (req.decoded.email !== email) {
         return res.send({ instructor: false });
       }
       const query = { email: email };
       const user = await usersCollection.findOne(query);
-      console.log(user);
       const result = { instructor: user?.role === "instructor" };
       res.send(result);
     });
@@ -154,7 +138,6 @@ async function run() {
     app.delete("/users/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      console.log(query);
       const result = await usersCollection.deleteOne(query);
 
       res.send(result);
@@ -235,18 +218,24 @@ async function run() {
 
     // ! post selected classes to db
     app.post("/selected-classes", async (req, res) => {
-      const data = req.body.selectedClasses;
-      const existingSelection = await selectedClassesCollection.findOne({
-        email: data.email,
-        className: data.className,
-      });
-      if (existingSelection) {
-        return res
-          .status(409)
-          .send({ message: "This class is already selected" });
+      try {
+        const data = req.body;
+        const existingSelection = await selectedClassesCollection.findOne({
+          email: data.email,
+          courseId: data.courseId,
+        });
+        if (existingSelection) {
+          return res
+            .status(409)
+            .json({ message: "This class is already selected" });
+        }
+        data.selected = true;
+        const result = await selectedClassesCollection.insertOne(data);
+        res.json(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Failed to select the class" });
       }
-      const result = await selectedClassesCollection.insertOne(data);
-      res.send(result);
     });
 
     // ! get all the selected classes by their email
@@ -269,8 +258,11 @@ async function run() {
     // ! get single class by their id
     app.get("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
+      console.log(id);
+      const query = { _id: id };
+      console.log(query);
       const result = await selectedClassesCollection.findOne(query);
+      console.log(result);
       res.send(result);
     });
 
@@ -280,6 +272,37 @@ async function run() {
       const result = await selectedClassesCollection.deleteOne({
         _id: new ObjectId(id),
       });
+      res.send(result);
+    });
+
+    // ! payment intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseFloat(price) * 100;
+      if (!price) return;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({ clientSecret: paymentIntent.client_secret });
+    });
+
+    // ! store the enrollment class and payment information
+    app.post("/enroll", async (req, res) => {
+      const enrolledData = req.body;
+      const result = await enrollmentCollection.insertOne(enrolledData);
+      res.send(result);
+    });
+
+    app.get("/enroll", async (req, res) => {
+      const email = req.query.email;
+      //   if (req.decoded.email !== email) {
+      //     return res.status(403).send({ message: "Forbidden access" });
+      //   }
+      const query = { email: email };
+      const result = await enrollmentCollection.find(query).toArray();
       res.send(result);
     });
 

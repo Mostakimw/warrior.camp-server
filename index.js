@@ -47,6 +47,9 @@ async function run() {
     await client.connect();
     const usersCollection = client.db("warriorCamp").collection("users");
     const classesCollection = client.db("warriorCamp").collection("classes");
+    const testimonialsCollection = client
+      .db("warriorCamp")
+      .collection("testimonials");
     const selectedClassesCollection = client
       .db("warriorCamp")
       .collection("selectedClasses");
@@ -152,8 +155,17 @@ async function run() {
 
     // ! get the stored all classes data
     app.get("/classes", async (req, res) => {
-      const result = await classesCollection.find().toArray();
-      res.send(result);
+      const { limit, sortBy } = req.query;
+      const query = { status: "approved" };
+      let instructorsData = classesCollection.find(query);
+      if (sortBy) {
+        instructorsData = instructorsData.sort({ enroll: -1 });
+      }
+      if (limit) {
+        instructorsData = instructorsData.limit(parseInt(limit));
+      }
+      instructorsData = await instructorsData.toArray();
+      res.send(instructorsData);
     });
 
     // ! get class data by instructor
@@ -330,6 +342,12 @@ async function run() {
       //   }
       const query = { email: email };
       const result = await enrollmentCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // ! get testimonial from db
+    app.get("/testimonials", async (req, res) => {
+      const result = await testimonialsCollection.find().toArray();
       res.send(result);
     });
 

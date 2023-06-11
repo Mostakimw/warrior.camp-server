@@ -170,6 +170,14 @@ async function run() {
       res.send(result);
     });
 
+    //! delete class data by instructor
+    app.delete("/classes/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await classesCollection.deleteOne(filter);
+      res.send(result);
+    });
+
     // ! get single class by their id
     app.get("/classes/:id", async (req, res) => {
       const id = req.params.id;
@@ -215,16 +223,15 @@ async function run() {
     });
 
     // ! update seat and enrollment after stu enrolled
-    app.patch("/classes/:courseId", async (req, res) => {
-      const courseId = req.params.courseId;
-
+    app.patch("/update-classes/:courseid", async (req, res) => {
+      const courseId = req.params.courseid;
+      console.log(courseId);
       try {
-        const update = await classesCollection.updateOne(
-          { courseId },
-          { $inc: { availableSeats: -1, enrollment: 1 } }
+        const result = await classesCollection.updateOne(
+          { _id: new ObjectId(courseId) },
+          { $inc: { availableSeats: -1, enroll: 1 } }
         );
-
-        res.send(update);
+        res.send(result);
       } catch (error) {
         console.error(error);
         res.status(500).send("Failed to update class.");

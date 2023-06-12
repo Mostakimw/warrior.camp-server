@@ -313,28 +313,6 @@ async function run() {
 
     // ! selected classes
 
-    // ! post selected classes to db
-    // app.post("/selected-classes", verifyJWT, async (req, res) => {
-    //   try {
-    //     const data = req.body;
-    //     const existingSelection = await selectedClassesCollection.findOne({
-    //       email: data?.email,
-    //       courseId: data?.courseId,
-    //     });
-    //     if (existingSelection) {
-    //       return res
-    //         .status(409)
-    //         .json({ message: "This class is already selected" });
-    //     }
-    //     data.selected = true;
-    //     const result = await selectedClassesCollection.insertOne(data);
-    //     res.json(result);
-    //   } catch (error) {
-    //     console.error(error);
-    //     res.status(500).json({ error: "Failed to select the class" });
-    //   }
-    // });
-
     app.post("/selected-classes", verifyJWT, async (req, res) => {
       try {
         const data = req.body;

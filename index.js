@@ -44,7 +44,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     const usersCollection = client.db("warriorCamp").collection("users");
     const classesCollection = client.db("warriorCamp").collection("classes");
     const testimonialsCollection = client
@@ -69,6 +69,28 @@ async function run() {
       }
       next();
     };
+    const verifyInstructor = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      if (result?.role !== "instructor") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
+      }
+      next();
+    };
+    const verifyStudent = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      if (result?.role !== "student") {
+        return res
+          .status(403)
+          .send({ error: true, message: "forbidden message" });
+      }
+      next();
+    };
 
     // ! jwt
     app.post("/jwt", async (req, res) => {
@@ -82,13 +104,17 @@ async function run() {
     // ! get/check if its admin or not
     app.get("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-      if (req.decoded.email !== email) {
-        return res.send({ admin: false });
+      try {
+        if (req.decoded.email !== email) {
+          return res.send({ admin: false });
+        }
+        const query = { email: email };
+        const user = await usersCollection.findOne(query);
+        const result = { admin: user?.role === "admin" };
+        res.send(result);
+      } catch (error) {
+        res.status(403).send({ message: "forbidden access" });
       }
-      const query = { email: email };
-      const user = await usersCollection.findOne(query);
-      const result = { admin: user?.role === "admin" };
-      res.send(result);
     });
     // ! get/check if its instructor or not
     app.get("/users/instructor/:email", verifyJWT, async (req, res) => {
@@ -101,9 +127,25 @@ async function run() {
       const result = { instructor: user?.role === "instructor" };
       res.send(result);
     });
+    // ! get/check if its student or not
+    app.get(
+      "/users/student/:email",
+      verifyJWT,
+      verifyStudent,
+      async (req, res) => {
+        const email = req.params.email;
+        if (req.decoded.email !== email) {
+          return res.send({ admin: false });
+        }
+        const query = { email: email };
+        const user = await usersCollection.findOne(query);
+        const result = { admin: user?.role === "student" };
+        res.send(result);
+      }
+    );
 
     // ! users storing on db
-    app.post("/users", async (req, res) => {
+    app.post("/users", verifyJWT, async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
@@ -114,13 +156,13 @@ async function run() {
       res.send(result);
     });
     // ! getting all users
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyJWT, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
 
     // ! change user to admin or instructor
-    app.put("/users/:id/role", async (req, res) => {
+    app.put("/users/:id/role", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const { role } = req.body;
       const query = { _id: new ObjectId(id) };
@@ -147,7 +189,7 @@ async function run() {
     });
 
     // ! store the class from instructor from add class page
-    app.post("/classes", async (req, res) => {
+    app.post("/classes", verifyJWT, verifyInstructor, async (req, res) => {
       const classData = req.body;
       const result = await classesCollection.insertOne(classData);
       res.send(result);
@@ -169,29 +211,34 @@ async function run() {
     });
 
     // ! get class data by instructor
-    app.get("/classes", verifyJWT, async (req, res) => {
-      const decodedEmail = req.decoded.email;
-      const email = req.query.email;
-      if (decodedEmail !== email) {
-        return res
-          .status(403)
-          .send({ error: true, message: "Forbidden access" });
-      }
-      const query = { email: email };
-      const result = await classesCollection.find(query).toArray();
-      res.send(result);
-    });
+    // app.get("/classes", verifyJWT, async (req, res) => {
+    //   const decodedEmail = req.decoded.email;
+    //   const email = req.query.email;
+    //   if (decodedEmail !== email) {
+    //     return res
+    //       .status(403)
+    //       .send({ error: true, message: "Forbidden access" });
+    //   }
+    //   const query = { email: email };
+    //   const result = await classesCollection.find(query).toArray();
+    //   res.send(result);
+    // });
 
     //! delete class data by instructor
-    app.delete("/classes/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const result = await classesCollection.deleteOne(filter);
-      res.send(result);
-    });
+    app.delete(
+      "/classes/:id",
+      verifyJWT,
+      verifyInstructor,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const result = await classesCollection.deleteOne(filter);
+        res.send(result);
+      }
+    );
 
     // ! get single class by their id
-    app.get("/classes/:id", async (req, res) => {
+    app.get("/classes/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await classesCollection.findOne(query);
@@ -199,7 +246,7 @@ async function run() {
     });
 
     // ! update class by instructor
-    app.patch("/classes/:id", async (req, res) => {
+    app.patch("/classes/:id", verifyJWT, verifyInstructor, async (req, res) => {
       const id = req.params.id;
       const classData = req.body;
       const query = { _id: new ObjectId(id) };
@@ -217,7 +264,7 @@ async function run() {
     });
 
     // ! update class status
-    app.put("/classes/:id/status", async (req, res) => {
+    app.put("/classes/:id/status", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const { status } = req.body;
       const query = { _id: new ObjectId(id) };
@@ -235,7 +282,7 @@ async function run() {
     });
 
     // ! update seat and enrollment after stu enrolled
-    app.patch("/update-classes/:courseid", async (req, res) => {
+    app.patch("/update-classes/:courseid", verifyJWT, async (req, res) => {
       const courseId = req.params.courseid;
       console.log(courseId);
       try {
@@ -245,7 +292,6 @@ async function run() {
         );
         res.send(result);
       } catch (error) {
-        console.error(error);
         res.status(500).send("Failed to update class.");
       }
     });
@@ -253,7 +299,7 @@ async function run() {
     // ! selected classes
 
     // ! post selected classes to db
-    app.post("/selected-classes", async (req, res) => {
+    app.post("/selected-classes", verifyJWT, async (req, res) => {
       try {
         const data = req.body;
         const existingSelection = await selectedClassesCollection.findOne({
@@ -291,16 +337,16 @@ async function run() {
       const result = await selectedClassesCollection.find(query).toArray();
       res.send(result);
     });
-    // ! get single class by their id
-    app.get("/selected-classes/:id", async (req, res) => {
+    // ! get single selected class by their id
+    app.get("/selected-classes/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const query = { _id: id };
       const result = await selectedClassesCollection.findOne(query);
       res.send(result);
     });
 
-    // ! delete single class by user
-    app.delete("/selected-classes/:id", async (req, res) => {
+    // ! delete single class by student
+    app.delete("/selected-classes/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
       const result = await selectedClassesCollection.deleteOne({
         _id: id,
@@ -309,7 +355,7 @@ async function run() {
     });
 
     // ! payment intent
-    app.post("/create-payment-intent", async (req, res) => {
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
       const { price } = req.body;
       const amount = parseFloat(price) * 100;
       if (!price) return;
@@ -323,27 +369,27 @@ async function run() {
     });
 
     // ! store the enrollment class and payment information
-    app.post("/enroll", async (req, res) => {
+    app.post("/enroll", verifyJWT, async (req, res) => {
       const enrolledData = req.body;
       const result = await enrollmentCollection.insertOne(enrolledData);
       res.send(result);
     });
 
     //! get all the paid classes
-    app.get("/enrolled", async (req, res) => {
+    app.get("/enrolled", verifyJWT, async (req, res) => {
       const result = await enrollmentCollection.find().toArray();
       res.send(result);
     });
 
-    app.get("/enroll", async (req, res) => {
-      const email = req.query.email;
-      //   if (req.decoded.email !== email) {
-      //     return res.status(403).send({ message: "Forbidden access" });
-      //   }
-      const query = { email: email };
-      const result = await enrollmentCollection.find(query).toArray();
-      res.send(result);
-    });
+    // app.get("/enroll", async (req, res) => {
+    //   const email = req.query.email;
+    //   //   if (req.decoded.email !== email) {
+    //   //     return res.status(403).send({ message: "Forbidden access" });
+    //   //   }
+    //   const query = { email: email };
+    //   const result = await enrollmentCollection.find(query).toArray();
+    //   res.send(result);
+    // });
 
     // ! get testimonial from db
     app.get("/testimonials", async (req, res) => {

@@ -145,7 +145,7 @@ async function run() {
     );
 
     // ! users storing on db
-    app.post("/users", verifyJWT, async (req, res) => {
+    app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
@@ -299,18 +299,42 @@ async function run() {
     // ! selected classes
 
     // ! post selected classes to db
+    // app.post("/selected-classes", verifyJWT, async (req, res) => {
+    //   try {
+    //     const data = req.body;
+    //     const existingSelection = await selectedClassesCollection.findOne({
+    //       email: data?.email,
+    //       courseId: data?.courseId,
+    //     });
+    //     if (existingSelection) {
+    //       return res
+    //         .status(409)
+    //         .json({ message: "This class is already selected" });
+    //     }
+    //     data.selected = true;
+    //     const result = await selectedClassesCollection.insertOne(data);
+    //     res.json(result);
+    //   } catch (error) {
+    //     console.error(error);
+    //     res.status(500).json({ error: "Failed to select the class" });
+    //   }
+    // });
+
     app.post("/selected-classes", verifyJWT, async (req, res) => {
       try {
         const data = req.body;
-        const existingSelection = await selectedClassesCollection.findOne({
-          email: data.email,
-          courseId: data.courseId,
-        });
-        if (existingSelection) {
+        const query = {
+          email: data?.email,
+          courseId: data?.courseId,
+        };
+
+        const selectionExists = await selectedClassesCollection.findOne(query);
+        if (selectionExists) {
           return res
             .status(409)
             .json({ message: "This class is already selected" });
         }
+
         data.selected = true;
         const result = await selectedClassesCollection.insertOne(data);
         res.json(result);

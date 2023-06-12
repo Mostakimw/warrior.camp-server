@@ -191,7 +191,6 @@ async function run() {
     // ! store the class from instructor from add class page
     app.post("/classes", async (req, res) => {
       const classData = req.body;
-      console.log(classData);
       const result = await classesCollection.insertOne(classData);
       res.send(result);
     });
@@ -231,6 +230,13 @@ async function run() {
         const result = await classesCollection.find(query).toArray();
         return res.send(result);
       }
+    });
+
+    // ! get instructor data
+    app.get("/instructors", async (req, res) => {
+      const query = { role: "instructor" };
+      const result = await usersCollection.find(query).toArray();
+      res.send(result);
     });
 
     //! delete class data by instructor

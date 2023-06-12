@@ -189,8 +189,9 @@ async function run() {
     });
 
     // ! store the class from instructor from add class page
-    app.post("/classes", verifyJWT, verifyInstructor, async (req, res) => {
+    app.post("/classes", async (req, res) => {
       const classData = req.body;
+      console.log(classData);
       const result = await classesCollection.insertOne(classData);
       res.send(result);
     });
@@ -210,19 +211,27 @@ async function run() {
       res.send(instructorsData);
     });
 
+    // ! get all classes data for admin
+    app.get("/all-classes", async (req, res) => {
+      const result = await classesCollection.find().toArray();
+      res.send(result);
+    });
     // ! get class data by instructor
-    // app.get("/classes", verifyJWT, async (req, res) => {
-    //   const decodedEmail = req.decoded.email;
-    //   const email = req.query.email;
-    //   if (decodedEmail !== email) {
-    //     return res
-    //       .status(403)
-    //       .send({ error: true, message: "Forbidden access" });
-    //   }
-    //   const query = { email: email };
-    //   const result = await classesCollection.find(query).toArray();
-    //   res.send(result);
-    // });
+    app.get("/instructor-classes", async (req, res) => {
+      //   const decodedEmail = req.decoded.email;
+      const email = req.query.email;
+      console.log(email);
+      // if (decodedEmail !== email) {
+      //   return res
+      //     .status(403)
+      //     .send({ error: true, message: "Forbidden access" });
+      // }
+      const query = { email: email };
+      if (query) {
+        const result = await classesCollection.find(query).toArray();
+        return res.send(result);
+      }
+    });
 
     //! delete class data by instructor
     app.delete(
@@ -264,7 +273,7 @@ async function run() {
     });
 
     // ! update class status
-    app.put("/classes/:id/status", verifyJWT, async (req, res) => {
+    app.put("/classes/:id/status", async (req, res) => {
       const id = req.params.id;
       const { status } = req.body;
       const query = { _id: new ObjectId(id) };

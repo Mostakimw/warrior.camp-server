@@ -314,6 +314,7 @@ async function run() {
     // ! selected classes
 
     app.post("/selected-classes", verifyJWT, async (req, res) => {
+      console.log(req.body);
       try {
         const data = req.body;
         const query = {
@@ -354,8 +355,9 @@ async function run() {
       const result = await selectedClassesCollection.find(query).toArray();
       res.send(result);
     });
+    
     // ! get single selected class by their id
-    app.get("/selected-classes/:id", verifyJWT, async (req, res) => {
+    app.get("/selected-classes/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: id };
       const result = await selectedClassesCollection.findOne(query);
